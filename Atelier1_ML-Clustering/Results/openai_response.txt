@@ -1,0 +1,127 @@
+Absolutely! Here is a **full example script** that loads your CSV data, applies KMeans clustering to the mechanical property columns (`MODULUS_GPa`, `HARDNESS_GPa`), visualizes the results on a scatter plot and a spatial heatmap, and outputs cluster assignments.
+
+You can save your data to `sample.csv` (use the JSON portion to generate the CSV).
+
+**Key steps**:
+
+1. CSV loading, exploration, visualization.
+2. Feature scaling (important for clustering).
+3. KMeans clustering, optimal K suggestion using the elbow method.
+4. Result visualization: cluster scatter and spatial plots.
+5. Summary report.
+
+---
+
+```python
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
+
+# --- Step 1. Load the CSV data ---
+df = pd.read_csv('sample.csv')  # Replace with your .csv path
+
+print("Basic info:")
+print(df.info())
+print("\nHead of data:")
+print(df.head())
+
+# --- Step 2. Explore and visualize ---
+print("\nSummary statistics:")
+print(df[['MODULUS_GPa', 'HARDNESS_GPa']].describe())
+
+sns.scatterplot(df, x='MODULUS_GPa', y='HARDNESS_GPa')
+plt.title('Scatter: Modulus vs Hardness')
+plt.show()
+
+# Optional: visualize spatial grid
+pivot_h = df.pivot(index='Y Position_µm', columns='X Position_µm', values='HARDNESS_GPa')
+pivot_m = df.pivot(index='Y Position_µm', columns='X Position_µm', values='MODULUS_GPa')
+fig, axs = plt.subplots(1, 2, figsize=(12,5))
+sns.heatmap(pivot_h, ax=axs[0], annot=False, cmap="coolwarm")
+axs[0].set_title("Spatial Hardness map")
+sns.heatmap(pivot_m, ax=axs[1], annot=False, cmap="viridis")
+axs[1].set_title("Spatial Modulus map")
+plt.tight_layout()
+plt.show()
+
+# --- Step 3. Prepare features and scale ---
+features = df[['MODULUS_GPa', 'HARDNESS_GPa']]
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(features)
+
+# --- Step 4. Find optimal number of clusters (elbow) ---
+wcss = []
+K_range = range(2, 8)
+for k in K_range:
+    km = KMeans(n_clusters=k, random_state=42)
+    km.fit(X_scaled)
+    wcss.append(km.inertia_)
+
+plt.plot(K_range, wcss, marker='o')
+plt.title('Elbow method for optimal k')
+plt.xlabel('Number of clusters')
+plt.ylabel('WCSS (within-cluster sum of squares)')
+plt.grid()
+plt.show()
+
+optimal_k = 3  # Pick visually (change if elbow suggests otherwise)
+
+# --- Step 5. Apply KMeans clustering ---
+kmeans = KMeans(n_clusters=optimal_k, random_state=42)
+df['cluster'] = kmeans.fit_predict(X_scaled)
+print(f"Cluster centers (unscaled):\n{scaler.inverse_transform(kmeans.cluster_centers_)}")
+
+# --- Step 6. Visualize clustering results ---
+plt.figure(figsize=(8,6))
+for cid in range(optimal_k):
+    subset = df[df['cluster'] == cid]
+    plt.scatter(subset['MODULUS_GPa'], subset['HARDNESS_GPa'], label=f'Cluster {cid}', alpha=0.7)
+plt.xlabel('MODULUS_GPa')
+plt.ylabel('HARDNESS_GPa')
+plt.legend()
+plt.title('KMeans Clusters on Mechanical Properties')
+plt.show()
+
+plt.figure(figsize=(8,6))
+sns.scatterplot(
+    df, x='X Position_µm', y='Y Position_µm', hue='cluster', palette='Set1', s=60
+)
+plt.title("Clusters spatial layout")
+plt.gca().invert_yaxis()
+plt.show()
+
+# --- Step 7. Cluster profiles ---
+summary = df.groupby('cluster')[['MODULUS_GPa', 'HARDNESS_GPa']].mean()
+counts = df['cluster'].value_counts()
+print("\nCluster profile means:\n", summary)
+print("Cluster counts:", counts.to_dict())
+
+# Save detailed results
+df.to_csv("clustering_result.csv", index=False)
+
+# Final tip: investigate clusters
+print("\nFirst 5 rows with cluster assignment:\n", df.head())
+
+print("\nDone. You may want to inspect 'clustering_result.csv' for cluster assignments.")
+```
+
+---
+
+**Instructions:**
+
+- Put your data in a file called `sample.csv` (with matching column names).
+- Run this script in the same directory.
+
+**Results you get:**
+- Elbow plot to choose K.
+- Clustered scatter and spatial plots.
+- Means of properties per cluster and assignment for each sample.
+- A new CSV with cluster assignments.
+
+**Tip**: You can change which features to cluster on if you want spatial clusters (`X`,`Y`,`MODULUS_GPa`,`HARDNESS_GPa`) but for materials it's usual to cluster on the properties.
+
+Let me know if you need clustering on other columns, hierarchical clustering, or more analysis!
